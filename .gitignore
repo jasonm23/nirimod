@@ -8,6 +8,3 @@ __pycache__/
 # NiriMod Temporary Files
 *.kdl.bak
 *.kdl.tmp
-
-# Development / Scratch Files
-test_*.py

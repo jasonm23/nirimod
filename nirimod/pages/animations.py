@@ -18,20 +18,28 @@ from gi.repository import Adw, GLib, Gtk
 from nirimod.kdl_parser import KdlNode, find_or_create, parse_kdl, set_child_arg, set_node_flag
 from nirimod.pages.base import BasePage
 
-_NIRIMATION_API = (
-    "https://api.github.com/repos/XansiVA/nirimation/contents/animations"
-)
-_NIRIMATION_RAW = (
-    "https://raw.githubusercontent.com/XansiVA/nirimation/main/animations/{name}"
-)
-_NIRIMATION_HTML = (
-    "https://github.com/XansiVA/nirimation/blob/main/animations/{name}"
-)
+_niri_anim_presets = {
+    "jgarza9788": {
+        "host": "github",
+        "repo_name": "jgarza9788/niri-animation-collection",
+        "title": "Niri Animation Community Presets",
+        "description": "GLSL shader animations from jgarza9788/niri-animation-collection - replaces your current animations block.",
+        "api": "https://api.github.com/repos/jgarza9788/niri-animation-collection/contents/animations",
+        "raw": "https://raw.githubusercontent.com/jgarza9788/niri-animation-collection/main/animations/{name}",
+        "html": "https://github.com/jgarza9788/niri-animation-collection/blob/main/animations/{name}",
+        "note": "",
+    }
+}
 
 # In-memory cache: None = not fetched, list = fetched entries, Exception = error
-_nirimation_cache: list[dict] | Exception | None = None
+_niri_animation_cache: list[dict] | Exception | None = None
 
-
+_NIRI_ANIMATION_API = _niri_anim_presets["jgarza9788"]["api"]
+_NIRI_ANIMATION_RAW = _niri_anim_presets["jgarza9788"]["raw"]
+_NIRI_ANIMATION_HTML = _niri_anim_presets["jgarza9788"]["html"]
+_NIRI_ANIMATION_REPO_NAME = _niri_anim_presets["jgarza9788"]["repo_name"]
+_NIRI_ANIMATION_TITLE = _niri_anim_presets["jgarza9788"]["title"]
+_NIRI_ANIMATION_DESCRIPTION = _niri_anim_presets["jgarza9788"]["description"]
 
 ANIM_NAMES = [
     ("workspace-switch", "Workspace Switch", "video-display-symbolic"),
@@ -216,25 +224,25 @@ class BezierEditor(Gtk.DrawingArea):
             self._on_changed(*self._cp)
 
 
-def _fetch_nirimation_presets(callback):
+def _fetch_niri_animation_presets(callback):
     """Fetch preset list from nirimation GitHub API in a background thread.
 
     *callback* is called on the GLib main loop with either a list[dict] (success)
     or an Exception (failure). Each dict has keys: name, display_name, download_url,
     html_url.
     """
-    global _nirimation_cache
+    global _niri_animation_cache
 
-    if _nirimation_cache is not None:
-        result = _nirimation_cache
+    if _niri_animation_cache is not None:
+        result = _niri_animation_cache
         GLib.idle_add(callback, result)
         return
 
     def _worker():
-        global _nirimation_cache
+        global _niri_animation_cache
         try:
             req = urllib.request.Request(
-                _NIRIMATION_API,
+                _NIRI_ANIMATION_API,
                 headers={"User-Agent": "nirimod/1.0"},
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -255,19 +263,19 @@ def _fetch_nirimation_presets(callback):
                         "display_name": display,
                         "download_url": item.get(
                             "download_url",
-                            _NIRIMATION_RAW.format(name=n),
+                            _NIRI_ANIMATION_RAW.format(name=n),
                         ),
                         "html_url": item.get(
                             "html_url",
-                            _NIRIMATION_HTML.format(name=n),
+                            _NIRI_ANIMATION_HTML.format(name=n),
                         ),
                     }
                 )
             entries.sort(key=lambda e: e["display_name"])
-            _nirimation_cache = entries
+            _niri_animation_cache = entries
             GLib.idle_add(callback, entries)
         except Exception as exc:
-            _nirimation_cache = exc
+            _niri_animation_cache = exc
             GLib.idle_add(callback, exc)
 
     threading.Thread(target=_worker, daemon=True).start()
@@ -522,7 +530,7 @@ class AnimationsPage(BasePage):
         return self._custom_scroll
 
     def _build_presets_tab(self) -> Gtk.Widget:
-        """Return the Nirimation presets tab."""
+        """Return the Niri animation presets tab."""
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
@@ -534,9 +542,9 @@ class AnimationsPage(BasePage):
         content.set_margin_bottom(32)
         scroll.set_child(content)
 
-        self._nirimation_section_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        content.append(self._nirimation_section_box)
-        self._nirimation_section_box.append(self._build_nirimation_group())
+        self._niri_animation_section_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        content.append(self._niri_animation_section_box)
+        self._niri_animation_section_box.append(self._build_niri_animation_group())
 
         return scroll
 
@@ -571,8 +579,8 @@ class AnimationsPage(BasePage):
         except Exception as exc:
             self.show_toast(f"Restore failed: {exc}")
 
-    def _build_nirimation_group(self) -> Adw.PreferencesGroup:
-        """Build the Nirimation community presets section."""
+    def _build_niri_animation_group(self) -> Adw.PreferencesGroup:
+        """Build the Niri animation community presets section."""
         # Header: refresh button
         refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
         refresh_btn.set_tooltip_text("Refresh preset list from GitHub")
@@ -580,8 +588,8 @@ class AnimationsPage(BasePage):
         refresh_btn.add_css_class("circular")
 
         grp = Adw.PreferencesGroup(
-            title="Nirimation Community Presets",
-            description="GLSL shader animations from XansiVA/nirimation — replaces your current animations block.",
+            title=_NIRI_ANIMATION_TITLE,
+            description=_NIRI_ANIMATION_DESCRIPTION,
         )
         grp.set_header_suffix(refresh_btn)
 
@@ -596,9 +604,9 @@ class AnimationsPage(BasePage):
         grp.add(spinner_row)
 
         # Keep refs so callbacks can update them
-        self._nirimation_grp = grp
-        self._nirimation_placeholder = spinner_row
-        self._nirimation_rows: list[Adw.ActionRow] = []
+        self._niri_animation_grp = grp
+        self._niri_animation_placeholder = spinner_row
+        self._niri_animation_rows: list[Adw.ActionRow] = []
 
         def _on_result(result):
             # Remove spinner placeholder
@@ -614,20 +622,20 @@ class AnimationsPage(BasePage):
                     Gtk.Image.new_from_icon_name("network-error-symbolic")
                 )
                 grp.add(err_row)
-                self._nirimation_rows.append(err_row)
+                self._niri_animation_rows.append(err_row)
                 return
 
             for entry in result:
-                row = self._make_nirimation_row(entry)
+                row = self._make_niri_animation_row(entry)
                 grp.add(row)
 
         def _on_refresh_clicked(_btn):
-            global _nirimation_cache
-            _nirimation_cache = None  # bust cache
+            global _niri_animation_cache
+            _niri_animation_cache = None  # bust cache
             # Remove all existing rows and show spinner again
-            for row in list(self._nirimation_rows):
+            for row in list(self._niri_animation_rows):
                 grp.remove(row)
-            self._nirimation_rows.clear()
+            self._niri_animation_rows.clear()
             sp2 = Gtk.Spinner()
             sp2.start()
             sp2.set_margin_top(8)
@@ -648,19 +656,19 @@ class AnimationsPage(BasePage):
                         Gtk.Image.new_from_icon_name("network-error-symbolic")
                     )
                     grp.add(err_row)
-                    self._nirimation_rows.append(err_row)
+                    self._niri_animation_rows.append(err_row)
                     return
                 for entry in result:
-                    row = self._make_nirimation_row(entry)
+                    row = self._make_niri_animation_row(entry)
                     grp.add(row)
 
-            _fetch_nirimation_presets(_on_result2)
+            _fetch_niri_animation_presets(_on_result2)
 
         refresh_btn.connect("clicked", _on_refresh_clicked)
-        _fetch_nirimation_presets(_on_result)
+        _fetch_niri_animation_presets(_on_result)
         return grp
 
-    def _make_nirimation_row(self, entry: dict) -> Adw.ActionRow:
+    def _make_niri_animation_row(self, entry: dict) -> Adw.ActionRow:
         """Create a single preset row for the Nirimation group."""
         row = Adw.ActionRow(
             title=entry["display_name"],
@@ -691,7 +699,7 @@ class AnimationsPage(BasePage):
         )
         row.add_suffix(apply_btn)
 
-        self._nirimation_rows.append(row)
+        self._niri_animation_rows.append(row)
         return row
 
     def _confirm_apply_nirimation(self, entry: dict, row: Adw.ActionRow):
@@ -701,7 +709,7 @@ class AnimationsPage(BasePage):
                 heading=f"Apply \u201c{entry['display_name']}\u201d?",
                 body=(
                     "This will fully replace your current animations block with the "
-                    f"\u201c{entry['display_name']}\u201d preset from XansiVA/nirimation.\n\n"
+                    f"\u201c{entry['display_name']}\u201d preset from {_NIRI_ANIMATION_REPO_NAME}.\n\n"
                     "Your existing bezier curves and per-animation settings will be overwritten. "
                     "You can undo this with Ctrl+Z."
                 ),
@@ -714,15 +722,15 @@ class AnimationsPage(BasePage):
 
             def _on_response(d, resp):
                 if resp == "apply":
-                    self._apply_nirimation_preset(entry, row)
+                    self._apply_niri_animation_preset(entry, row)
 
             dialog.connect("response", _on_response)
             dialog.present(self._win)
         except AttributeError:
             # Adw.AlertDialog not available (older libadwaita) — fall back to direct apply
-            self._apply_nirimation_preset(entry, row)
+            self._apply_niri_animation_preset(entry, row)
 
-    def _apply_nirimation_preset(self, entry: dict, row: Adw.ActionRow):
+    def _apply_niri_animation_preset(self, entry: dict, row: Adw.ActionRow):
         """Download the preset KDL and apply it (replaces the animations node)."""
         # Disable row while fetching
         row.set_sensitive(False)
